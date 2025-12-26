@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>番茄工作法倒计时器</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <header>
+                <h1>番茄工作法倒计时器</h1>
+            </header>
+            
+            <main>
+                <div class="timer-section">
+                    <div class="mode-selector">
+                        <button 
+                            class="mode-btn" 
+                            :class="{ active: currentMode === 'work' }" 
+                            @click="switchMode('work')"
+                        >
+                            工作模式
+                        </button>
+                        <button 
+                            class="mode-btn" 
+                            :class="{ active: currentMode === 'break' }" 
+                            @click="switchMode('break')"
+                        >
+                            休息模式
+                        </button>
+                    </div>
+                    
+                    <div class="timer-display">
+                        <div class="time">{{ formattedTime }}</div>
+                        <div class="progress-ring">
+                            <svg width="300" height="300" viewBox="0 0 300 300">
+                                <circle
+                                    class="progress-ring-background"
+                                    stroke-width="15"
+                                    fill="transparent"
+                                    r="135"
+                                    cx="150"
+                                    cy="150"
+                                />
+                                <circle
+                                    class="progress-ring-progress"
+                                    :class="currentMode"
+                                    stroke-width="15"
+                                    fill="transparent"
+                                    r="135"
+                                    cx="150"
+                                    cy="150"
+                                    stroke-linecap="round"
+                                    transform="rotate(-90 150 150)"
+                                    :style="progressStyle"
+                                />
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="controls">
+                        <button 
+                            class="control-btn" 
+                            id="startBtn" 
+                            @click="start" 
+                            :disabled="isRunning"
+                        >
+                            开始
+                        </button>
+                        <button 
+                            class="control-btn" 
+                            id="pauseBtn" 
+                            @click="pause" 
+                            :disabled="!isRunning"
+                        >
+                            暂停
+                        </button>
+                        <button 
+                            class="control-btn" 
+                            id="resetBtn" 
+                            @click="reset"
+                        >
+                            重置
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h2>自定义设置</h2>
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="workTime">工作时间 (分钟):</label>
+                            <input 
+                                type="number" 
+                                id="workTime" 
+                                min="1" 
+                                max="60" 
+                                v-model.number="workTime"
+                                @change="updateTime"
+                            >
+                        </div>
+                        <div class="setting-item">
+                            <label for="breakTime">休息时间 (分钟):</label>
+                            <input 
+                                type="number" 
+                                id="breakTime" 
+                                min="1" 
+                                max="30" 
+                                v-model.number="breakTime"
+                                @change="updateTime"
+                            >
+                        </div>
+                        <div class="setting-item toggle-item">
+                            <label for="soundToggle">音效开关</label>
+                            <label class="toggle-switch">
+                                <input 
+                                    type="checkbox" 
+                                    id="soundToggle" 
+                                    v-model="isSoundEnabled"
+                                >
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="setting-item toggle-item">
+                            <label for="darkModeToggle">暗黑模式</label>
+                            <label class="toggle-switch">
+                                <input 
+                                    type="checkbox" 
+                                    id="darkModeToggle" 
+                                    v-model="isDarkModeEnabled"
+                                    @change="toggleDarkMode"
+                                >
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <footer>
+                <p>© 2025 番茄工作法倒计时器</p>
+            </footer>
+        </div>
+    </div>
+    
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        
+        createApp({
+            setup() {
+                // 状态管理
+                const workTime = ref(25);
+                const breakTime = ref(5);
+                const remainingTime = ref(workTime.value * 60);
+                const currentMode = ref('work');
+                const isRunning = ref(false);
+                const isSoundEnabled = ref(true);
+                const isDarkModeEnabled = ref(false);
+                let timerId = null;
+                const radius = 135;
+                const circumference = radius * 2 * Math.PI;
+                
+                // 计算属性
+                const formattedTime = computed(() => {
+                    const minutes = Math.floor(remainingTime.value / 60);
+                    const seconds = remainingTime.value % 60;
+                    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                });
+                
+                const progressStyle = computed(() => {
+                    const totalTime = currentMode.value === 'work' ? workTime.value * 60 : breakTime.value * 60;
+                    const percentage = (totalTime - remainingTime.value) / totalTime;
+                    const offset = circumference - (percentage * circumference);
+                    return {
+                        strokeDasharray: `${circumference} ${circumference}`,
+                        strokeDashoffset: offset
+                    };
+                });
+                
+                // 方法
+                const start = () => {
+                    if (!isRunning.value) {
+                        isRunning.value = true;
+                        timerId = setInterval(countdown, 1000);
+                    }
+                };
+                
+                const pause = () => {
+                    if (isRunning.value) {
+                        isRunning.value = false;
+                        clearInterval(timerId);
+                    }
+                };
+                
+                const reset = () => {
+                    pause();
+                    remainingTime.value = currentMode.value === 'work' ? workTime.value * 60 : breakTime.value * 60;
+                };
+                
+                const switchMode = (mode) => {
+                    if (mode !== currentMode.value) {
+                        pause();
+                        currentMode.value = mode;
+                        remainingTime.value = mode === 'work' ? workTime.value * 60 : breakTime.value * 60;
+                    }
+                };
+                
+                const countdown = () => {
+                    if (remainingTime.value > 0) {
+                        remainingTime.value--;
+                    } else {
+                        complete();
+                    }
+                };
+                
+                const complete = () => {
+                    pause();
+                    playNotification();
+                    switchMode(currentMode.value === 'work' ? 'break' : 'work');
+                    start();
+                };
+                
+                const playNotification = () => {
+                    if (isSoundEnabled.value) {
+                        try {
+                            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                            const oscillator = audioContext.createOscillator();
+                            const gainNode = audioContext.createGain();
+                            
+                            oscillator.connect(gainNode);
+                            gainNode.connect(audioContext.destination);
+                            
+                            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                            
+                            oscillator.start(audioContext.currentTime);
+                            oscillator.stop(audioContext.currentTime + 0.5);
+                        } catch (error) {
+                            console.log('音效播放失败:', error);
+                        }
+                    }
+                };
+                
+                const updateTime = () => {
+                    if (!isRunning.value) {
+                        remainingTime.value = currentMode.value === 'work' ? workTime.value * 60 : breakTime.value * 60;
+                    }
+                    saveSettings();
+                };
+                
+                const toggleDarkMode = () => {
+                    if (isDarkModeEnabled.value) {
+                        document.body.classList.add('dark-mode');
+                    } else {
+                        document.body.classList.remove('dark-mode');
+                    }
+                    saveSettings();
+                };
+                
+                const saveSettings = () => {
+                    const settings = {
+                        workTime: workTime.value,
+                        breakTime: breakTime.value,
+                        isSoundEnabled: isSoundEnabled.value,
+                        isDarkModeEnabled: isDarkModeEnabled.value
+                    };
+                    localStorage.setItem('pomodoroSettings', JSON.stringify(settings));
+                };
+                
+                const loadSettings = () => {
+                    const saved = localStorage.getItem('pomodoroSettings');
+                    if (saved) {
+                        const settings = JSON.parse(saved);
+                        workTime.value = settings.workTime;
+                        breakTime.value = settings.breakTime;
+                        isSoundEnabled.value = settings.isSoundEnabled;
+                        isDarkModeEnabled.value = settings.isDarkModeEnabled;
+                        remainingTime.value = currentMode.value === 'work' ? workTime.value * 60 : breakTime.value * 60;
+                        
+                        // 应用暗黑模式
+                        if (isDarkModeEnabled.value) {
+                            document.body.classList.add('dark-mode');
+                        }
+                    }
+                };
+                
+                // 生命周期钩子
+                onMounted(() => {
+                    loadSettings();
+                });
+                
+                return {
+                    workTime,
+                    breakTime,
+                    remainingTime,
+                    currentMode,
+                    isRunning,
+                    isSoundEnabled,
+                    isDarkModeEnabled,
+                    formattedTime,
+                    progressStyle,
+                    start,
+                    pause,
+                    reset,
+                    switchMode,
+                    updateTime,
+                    toggleDarkMode
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
